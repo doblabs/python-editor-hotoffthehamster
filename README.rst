@@ -2,6 +2,17 @@
 python-editor-hotoffthehamster
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+.. |dob| replace:: ``dob``
+.. _dob: https://github.com/doblabs/dob
+
+.. |python-editor| replace:: ``python-editor``
+.. _python-editor: https://github.com/fmoo/python-editor
+
+|
+
+|python-editor|_ revival fork for |dob|_ (because ``python-editor`` has not
+been released `in many years <https://pypi.org/project/python-editor/>`__).
+
 ###############
 Original README
 ###############
