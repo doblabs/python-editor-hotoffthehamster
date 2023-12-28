@@ -3,10 +3,10 @@
 
 from __future__ import print_function
 
-import sys
 import locale
 import os.path
 import subprocess
+import sys
 import tempfile
 
 __all__ = [
