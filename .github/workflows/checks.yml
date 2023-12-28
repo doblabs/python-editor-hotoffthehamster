@@ -1,0 +1,688 @@
+# vim:tw=0:ts=2:sw=2:et:norl
+# Author: Landon Bouma <https://tallybark.com/>
+# Project: https://github.com/doblabs/easy-as-pypi#🥧
+# License: MIT
+# yamllint disable rule:line-length
+
+---
+
+# USYNC: The jobs below should include most of the same jobs as the
+#        Makefile 'lint' recipe and the tox.ini 'labels' setting.
+#        - Except skip 'linkcheck', which usually fails before
+#          docs are published. Chicken before the egg.
+
+name: Checks — Runner
+
+on:
+  workflow_call:
+    inputs:
+      prerelease:
+        type: boolean
+        default: false
+
+# ***
+
+env:
+  # TRACK: https://github.com/actions/python-versions/releases
+  # USYNC: workflows/ (PYTHON_VERSION), tox.ini (basepython), Makefile (VENV_PYVER).
+  PYTHON_VERSION: 3.11
+
+  # USAGE: Set RUN_ONLY to restrict to specific job, e.g.,
+  #
+  #   RUN_ONLY: "doc8-poetry"
+  #
+  # Note that a job-level `if` does not export `env`, so we
+  # do this at the step level and use `exit 1` to fail the job.
+  # CXREF: https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
+  # - Shows `jobs.<job_id>.if` loads contexts: github, needs, vars, and inputs.
+  #
+  RUN_ONLY: ""
+
+  # You probably don't want to fiddle with this.
+  # - See comments in actions/install-python-and-poetry:
+  #   - This is the quicker, more readable, and more sensible of the two
+  #     approaches (and the third approach, no caching, is not advised).
+  VENV_CACHE_STRATEGY: "actions/cache"
+  # Other options:
+  #  VENV_CACHE_STRATEGY: "actions/setup-python"
+  #  VENV_CACHE_STRATEGY: "off"
+
+  USE_CACHE_DISABLE: "false"
+  # Other option(s):
+  #  USE_CACHE_DISABLE: "true"
+
+jobs:
+
+  # *** Project Task Disablement
+
+  disablement-detector:
+    name: Inspect Makefile.project for opt-outs
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Use an intermediate Makefile to probe project Makefile.
+      # - As mentioned above, skipping:  EAPP_MAKEFILE_LINKCHECK_DISABLE,
+      #   and a few other environs that exist insofar as being included
+      #   herein only to be excluded. But documented why.
+      - name: Check if project disabled this task
+        id: read-environs
+        run: |
+
+          for var_name in \
+            "EAPP_MAKEFILE_TESTS_DISABLE" \
+            "EAPP_MAKEFILE_TESTS_WINDOWS_DISABLE" \
+            "EAPP_MAKEFILE_BLACK_DISABLE" \
+            "EAPP_MAKEFILE_FLAKE8_DISABLE" \
+            "EAPP_MAKEFILE_ISORT_DISABLE" \
+            "EAPP_MAKEFILE_DOC8_PIP_DISABLE" \
+            "EAPP_MAKEFILE_DOC8_POETRY_DISABLE" \
+            "EAPP_MAKEFILE_DOCS_DISABLE" \
+            "EAPP_MAKEFILE_TWINE_CHECK_DISABLE" \
+            "EAPP_MAKEFILE_POETRY_CHECK_DISABLE" \
+            "EAPP_MAKEFILE_PYDOCSTYLE_DISABLE" \
+            "EAPP_MAKEFILE_COVERAGE_DISABLE" \
+            "EAPP_MAKEFILE_YAMLLINT_DISABLE" \
+            "EAPP_MAKEFILE_LINKCHECK_DISABLE" \
+          ; do
+            var_value="$(make -f <(
+              echo -e \
+                "-include Makefile.project\nprint_value:\n\t@echo \$(${var_name})"
+            ) print_value)"
+
+            environ_value=$([ -z "${var_value}" ] && echo "false" || echo "${var_value}")
+
+            echo "${var_name}=${environ_value}"
+
+            echo "${var_name}=${environ_value}" >> "${GITHUB_OUTPUT}"
+          done
+
+    outputs:
+      EAPP_MAKEFILE_TESTS_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_TESTS_DISABLE }}
+      EAPP_MAKEFILE_TESTS_WINDOWS_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_TESTS_WINDOWS_DISABLE }}
+      EAPP_MAKEFILE_BLACK_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_BLACK_DISABLE }}
+      EAPP_MAKEFILE_FLAKE8_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_FLAKE8_DISABLE }}
+      EAPP_MAKEFILE_ISORT_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_ISORT_DISABLE }}
+      EAPP_MAKEFILE_DOC8_PIP_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_DOC8_PIP_DISABLE }}
+      EAPP_MAKEFILE_DOC8_POETRY_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_DOC8_POETRY_DISABLE }}
+      EAPP_MAKEFILE_DOCS_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_DOCS_DISABLE }}
+      # SKIPD: Because all projects should pass `twine-check` and `poetry-check`.
+      #   EAPP_MAKEFILE_TWINE_CHECK_DISABLE: ${{
+      #     steps.read-environs.outputs.EAPP_MAKEFILE_TWINE_CHECK_DISABLE }}
+      #   EAPP_MAKEFILE_POETRY_CHECK_DISABLE: ${{
+      #     steps.read-environs.outputs.EAPP_MAKEFILE_POETRY_CHECK_DISABLE }}
+      EAPP_MAKEFILE_PYDOCSTYLE_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_PYDOCSTYLE_DISABLE }}
+      EAPP_MAKEFILE_COVERAGE_DISABLE: ${{
+        steps.read-environs.outputs.EAPP_MAKEFILE_COVERAGE_DISABLE }}
+      # SKIPD: Because all projects should pass `yamllint`.
+      #   EAPP_MAKEFILE_YAMLLINT_DISABLE: ${{
+      #     steps.read-environs.outputs.EAPP_MAKEFILE_YAMLLINT_DISABLE }}
+      # SKIPD: Because we don't run linkcheck from CI, only from local `make lint`:
+      #   EAPP_MAKEFILE_LINKCHECK_DISABLE: ${{
+      #     steps.read-environs.outputs.EAPP_MAKEFILE_LINKCHECK_DISABLE }}
+
+  # *** TEST
+
+  test:
+    runs-on: ${{ matrix.platform }}
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_TESTS_DISABLE != 'true'
+
+    # CXREF: https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
+    strategy:
+      fail-fast: true
+      matrix:
+        platform: ['ubuntu-latest']
+        # TRACK: https://github.com/actions/python-versions/releases
+        # LATER/2023-11-04: Latest 3.13.0-alpha.1 not working yet:
+        #   Poetry installation failed.
+        #   See /home/runner/work/easy-as-pypi/easy-as-pypi/poetry-installer-error-6onruz7x.log
+        #         for error logs.
+        #   Error: Process completed with exit code 1.
+        # - Reenable this eventually:
+        #  python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13.0-alpha.1']
+        # USYNC: Update GitHub Branch protection rules when you modify this list! E.g.,
+        #   https://github.com/doblabs/easy-as-pypi/settings/branch_protection_rules/37797347
+        # USYNC: checks.yml (here), tox.ini (envlist), Makefile (pyenv-install-pys).
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+        # DUNNO/2022-10-04: GitHub doesn't always spin up macOS and Windows
+        # immediately ("Waiting for runner to start this task..."). And on
+        # private repos, they charge more per minute than Ubuntu (not that
+        # that affects free projects).
+        # - Windows is also a lot slower. I see checkout alone ~45s!
+        #   - Versus 1s on Ubuntu! (Ridiculously slower.)
+        # - So, I dunno, don't bother with old Python on macOS and Windows.
+        #   (Although if people report issues on missing Python versions,
+        #    then consider enabling.)
+        #   - Instead of using a platform array:
+        #       platform: ['ubuntu-latest', 'macos-latest', 'windows-latest']
+        #     Use matrix.include to add specific platform-Python combinations.
+        include:
+          - platform: 'macos-latest'
+            python-version: '3.12'
+          - platform: 'windows-latest'
+            python-version: '3.12'
+
+    # Set the default shell, required for "windows-latest".
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+        shell: bash
+        run: exit 1
+
+      # CXREF: https://github.com/actions/checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch tags, so downstream projects can test 'em, e.g., to
+          # compare version tag versus project version.
+          fetch-depth: 0
+
+      - name: Check enablement flags
+        id: check-disablement
+        shell: bash
+        run: |
+          inhibit_test=false
+          if [ ${{ matrix.platform }} = 'windows-latest' ] \
+            && ${{
+            needs.disablement-detector.outputs.EAPP_MAKEFILE_TESTS_WINDOWS_DISABLE
+          }} = 'true' ]; then
+            inhibit_test=true
+          fi
+          echo "inhibit_test=${inhibit_test}"
+          echo "inhibit_test=${inhibit_test}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Python and load venv from cache
+        if: ${{ steps.check-disablement.outputs.inhibit_test == 'false' }}
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: test,project_test
+          poetry-install-root: true
+          python-version: ${{ matrix.python-version }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Test
+        if: ${{ steps.check-disablement.outputs.inhibit_test == 'false' }}
+        shell: bash
+        run: |
+          poetry run make test
+          # DEVs: If you need to test a specific function or class, try, e.g.,:
+          #   poetry run python -m pytest -k test_function tests/
+
+  # *** SAVVY
+
+  # While it might be nice to isolate jobs in separate Yaml files, each
+  # file is its own workflow, and each workflow appears separately under
+  # the Actions workflow list, so easier to examine results if you keep
+  # all jobs related to the same push or PR within the same workflow.
+  # - At least when possible: Workflows that run after checks complete
+  #   cannot be combined herein, e.g., those using `workflow_run` opt.:
+  #
+  #    on:
+  #      workflow_run:
+  #        workflows: ["Checks — Runner"]
+  #        types:
+  #          - completed
+
+  # *** BLACK
+
+  black:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_BLACK_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: lint,project_lint
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Run black
+        run: poetry run black $SOURCE_DIR --check
+        env:
+          SOURCE_DIR: src/
+
+  # *** FLAKE8
+
+  flake8:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_FLAKE8_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: lint,project_lint
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Run flake8
+        run: poetry run make flake8
+
+  # *** ISORT
+
+  isort:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_ISORT_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: lint,project_lint
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Run isort
+        run: poetry run make isort_check_only
+
+  # *** DOC8-PIP
+
+  doc8-pip:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_DOC8_PIP_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - id: start-clock
+        run: echo "CLOCK_0=$(date +%s)" >> "${GITHUB_OUTPUT}"
+
+      # USYNC: Similar to `make_doc8_pip` in 'Maketasks.sh'.
+
+      - name: Prevent actions/setup-python cache conflicts
+        run: |
+          echo "doc8-pip-${{ runner.os
+            }}-${{ github.job
+            }}-${{ steps.setup-python.outputs.python-version
+            }}-${{ hashFiles('.github/actions/load-venv-actions-cache-cache/action.yml')
+            }}" > ".fake-key-doc8-pip"
+
+      # CXREF: https://github.com/actions/setup-python
+      - name: Set up Python ${{ env.PYTHON_VERSION }} — With cache
+        id: setup-python
+        if: ${{ env.USE_CACHE_DISABLE != 'true' }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          # DUNNO/2023-12-27: This cache always seems to hit,
+          # even when it shows different keys between runs.
+          # - Note that I think the cache that's restored is
+          #   $(pip cache dir), e.g., /home/runner/.cache/pip
+          cache: 'pip'
+          cache-dependency-path: |
+            .github/workflows/checks.yml
+            .fake-key-doc8-pip
+
+      # CXREF: https://github.com/actions/setup-python
+      - name: Set up Python ${{ env.PYTHON_VERSION }} — Without cache
+        if: ${{ env.USE_CACHE_DISABLE == 'true' }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        # Per comment above, actions/setup-python caches pip wheels,
+        # so we always need install.
+        #  if: ${{ steps.setup-python.outputs.cache-hit != 'true' }}
+        run: pip install -U pip doc8>="1.1.1"
+
+      - name: Cache analysis — poetry-install
+        run: echo "ELAPS∷ $(($(date +%s) - ${{ steps.start-clock.outputs.CLOCK_0 }})) s"
+
+      - name: Run doc8
+        run: |
+          docs_dir=""
+          if [ -d "docs" ]; then
+            docs_dir="docs/"
+          fi
+
+          python -m doc8 *.rst ${docs_dir}
+
+  # *** DOC8-POETRY
+
+  doc8-poetry:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_DOC8_POETRY_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      # CXREF: https://github.com/actions/checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Example how to avoid hardcoding paths defined elsewhere.
+      - name: Suss pseudo subproject directory name
+        run: |
+          echo "PYPROJECT_DOC8_DIR=$(
+            echo "$(grep -e 'PYPROJECT_DOC8_DIR ?\?= ' Makefile | sed -E 's/^.* ?\?= //')"
+          )" >> $GITHUB_ENV
+
+          # E.g., ".pyproject-doc8"
+          echo "PYPROJECT_DOC8_DIR: ${{ env.PYPROJECT_DOC8_DIR }}"
+
+      - name: Prepare doc8 Poetry assets — pyproject.toml and poetry.lock
+        run: |
+          if [ "${PYPROJECT_DOC8_DIR}" != "." ]; then
+            command cp -f "${PYPROJECT_DOC8_DIR}/poetry.lock" "poetry.lock"
+            command cp -f "${PYPROJECT_DOC8_DIR}/pyproject.toml" "pyproject.toml"
+          fi
+
+      # USYNC: Similar to `make_doc8_poetry` in 'Maketasks.sh'.
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: dev
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          # We placed doc8 Poetry assets in previous step,
+          # so we don't want pre-release Poetry assets.
+          prerelease: false
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Run doc8
+        run: |
+          docs_dir=""
+          if [ -d "docs" ]; then
+            docs_dir="docs/"
+          fi
+
+          poetry run python -m doc8 *.rst ${docs_dir}
+
+  # *** DOCS
+
+  docs:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_DOCS_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: docs,project_docs
+          poetry-install-extras: readthedocs
+          poetry-install-root: true
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Docs build
+        run: poetry run make _docs_html_skip_venv
+
+  # *** TWINE-CHECK
+
+  twine-check:
+    runs-on: ubuntu-latest
+
+    # Always-on.
+    # - NOPE:
+    #   needs: disablement-detector
+    #   if: ${{
+    #     needs.disablement-detector.outputs.EAPP_MAKEFILE_TWINE_CHECK_DISABLE
+    #     != 'true' }}
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: dist,project_dist
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      # Verifies bdist and sdist archives.
+      - name: Dist check
+        run: poetry run make twine-check
+
+  # *** POETRY-CHECK
+
+  poetry-check:
+    runs-on: ubuntu-latest
+
+    # Always-on.
+    # - NOPE:
+    #   needs: disablement-detector
+    #   if: ${{
+    #     needs.disablement-detector.outputs.EAPP_MAKEFILE_POETRY_CHECK_DISABLE
+    #     != 'true' }}
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: ''
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      # Verifies pyproject.toml.
+      - name: Poetry check
+        run: poetry run make poetry-check
+
+  # *** PYDOCSTYLE
+
+  pydocstyle:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_PYDOCSTYLE_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: docstyle,project_docstyle
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Docstring check
+        run: poetry run make pydocstyle
+
+  # *** COVERAGE
+
+  coverage:
+    runs-on: ubuntu-latest
+
+    # MAYBE/2023-05-21: We could restrict to the release branch, e.g.,
+    #
+    #   if: github.ref == 'refs/heads/release'
+    #
+    # But I'm curious about seeing coverage reports for PRs (and possibly
+    # coverage diffs), so not doing this until I understand better how it
+    # all works.
+
+    needs: disablement-detector
+
+    if: ${{ needs.disablement-detector.outputs.EAPP_MAKEFILE_COVERAGE_DISABLE != 'true'
+      && needs.disablement-detector.outputs.EAPP_MAKEFILE_TESTS_DISABLE != 'true' }}
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # At least one downstream user (`nark`) tests for a version,
+          # which poetry-dynamic-versioning reads from tags.
+          fetch-depth: 0
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: test,project_test
+          poetry-install-root: true
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Coverage compute
+        run: poetry run make _coverage_xml
+
+      # Wired to CODECOV_TOKEN repository or organization secret.
+      # CXREF: https://app.codecov.io/gh/doblabs/easy-as-pypi/new
+      #   https://github.com/codecov/codecov-action
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Multiple files allowed, e.g.,
+          #  files: ./coverage1.xml,./coverage2.xml # optional
+          files: ./coverage.xml
+          # COPYD: Remaining are from Action README:
+          #  flags: unittests # optional
+          #  name: codecov-umbrella # optional
+          # - fail_ci_if_error: "Specify if CI pipeline should fail when
+          #   Codecov runs into errors during upload"
+          #   - Though unsure if fails just this job, or the whole workflow.
+          fail_ci_if_error: true  # optional (default = false)
+          #  verbose: true # optional (default = false)
+
+  # *** YAMLLINT
+
+  yamllint:
+    runs-on: ubuntu-latest
+
+    needs: disablement-detector
+
+    if: needs.disablement-detector.outputs.EAPP_MAKEFILE_YAMLLINT_DISABLE != 'true'
+
+    steps:
+      - name: Fail if RUN_ONLYing another job
+        run: exit 1
+        if: ${{ env.RUN_ONLY && env.RUN_ONLY != github.job }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python and load venv from cache
+        uses: ./.github/actions/install-python-and-poetry
+        with:
+          poetry-install-with: lint,project_lint
+          poetry-install-root: false
+          python-version: ${{ env.PYTHON_VERSION }}
+          prerelease: ${{ inputs.prerelease }}
+          cache-strategy: ${{ env.VENV_CACHE_STRATEGY }}
+          disable-cache: ${{ env.USE_CACHE_DISABLE }}
+
+      - name: Run yamllint
+        run: poetry run make yamllint
