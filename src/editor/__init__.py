@@ -15,7 +15,9 @@ __all__ = [
     'EditorError',
 ]
 
-__version__ = '1.0.5'
+# This version is substituted on poetry-build by poetry-dynamic-versioning.
+# - Consequently, __version__ remains empty when installed in 'editable' mode.
+__version__ = ""
 
 
 class EditorError(RuntimeError):
