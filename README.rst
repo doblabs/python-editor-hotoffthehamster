@@ -2,6 +2,39 @@
 python-editor-hotoffthehamster
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+.. CXREF:
+   https://docs.github.com/en/actions/monitoring-and-troubleshooting-workflows/adding-a-workflow-status-badge
+
+.. image:: https://github.com/doblabs/python-editor-hotoffthehamster/actions/workflows/checks-unspecial.yml/badge.svg?branch=release
+  :target: https://github.com/doblabs/python-editor-hotoffthehamster/actions/workflows/checks-unspecial.yml/badge.svg?branch=release
+  :alt: Build Status
+
+.. CXREF: https://app.codecov.io/github.com/doblabs/python-editor-hotoffthehamster/settings/badge
+
+.. image:: https://codecov.io/gh/doblabs/python-editor-hotoffthehamster/branch/release/graph/badge.svg?token=QghNXZq2YB
+  :target: https://app.codecov.io/gh/doblabs/python-editor-hotoffthehamster
+  :alt: Coverage Status
+
+.. image:: https://readthedocs.org/projects/python-editor-hotoffthehamster/badge/?version=latest
+  :target: https://python-editor-hotoffthehamster.readthedocs.io/en/latest/
+  :alt: Documentation Status
+
+.. image:: https://img.shields.io/github/v/release/doblabs/python-editor-hotoffthehamster.svg?style=flat
+  :target: https://github.com/doblabs/python-editor-hotoffthehamster/releases
+  :alt: GitHub Release Status
+
+.. image:: https://img.shields.io/pypi/v/python-editor-hotoffthehamster.svg
+  :target: https://pypi.org/project/python-editor-hotoffthehamster/
+  :alt: PyPI Release Status
+
+.. image:: https://img.shields.io/pypi/pyversions/python-editor-hotoffthehamster.svg
+  :target: https://pypi.org/project/python-editor-hotoffthehamster/
+  :alt: PyPI Supported Python Versions
+
+.. image:: https://img.shields.io/github/license/doblabs/python-editor-hotoffthehamster.svg?style=flat
+  :target: https://github.com/doblabs/python-editor-hotoffthehamster/blob/release/LICENSE
+  :alt: License Status
+
 .. |dob| replace:: ``dob``
 .. _dob: https://github.com/doblabs/dob
 
